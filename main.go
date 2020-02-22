@@ -34,9 +34,20 @@ func main() {
 	for {
 		fmt.Println("Publishing \"hello\" to \"hello\"")
 
-		if token := client.Publish("hello", 0, false, "hello"); token.Wait() && token.Error() != nil {
+		if token := client.Publish("hello", 0, false, "This is it"); token.Wait() && token.Error() != nil {
 			fmt.Println(token.Error())
 		}
+
+		//for topic /keyboard when it is used in a lock
+		if token := client.Publish("/bast/csulb-bast/backdoor/keyboard", 0, false, "backdoor keyboard engaged"); token.Wait() && token.Error() != nil {
+			fmt.Println(token.Error())
+		}
+
+		//for top /card when it is used in a lcok
+		if token := client.Publish("/bast/csulb-bast/backdoor/card", 0, false, "backdoor card engaged"); token.Wait() && token.Error() != nil {
+			fmt.Println(token.Error())
+		}
+
 
 		time.Sleep(time.Second)
 	}
