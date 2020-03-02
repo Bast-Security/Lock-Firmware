@@ -1,10 +1,10 @@
 package main
 
 import (
-	// Install with `go get github.com/eclipse/paho.mqtt.golang
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"os"
 	"fmt"
+	"log"
 	"github.com/stianeikeland/go-rpio"
 )
 
@@ -94,6 +94,17 @@ func main() {
 
 	//variable will be saving the input of the user
 	userPin := ""
+
+	cardRead := func(num string) {
+		fmt.Printf("Card %s was read!\n", num)
+	}
+
+	cardReader, err := startReader(cardRead)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer cardReader.stop()
 
 	for {
 		if token := client.Publish("hello", 0, false, "This is it"); token.Wait() && token.Error() != nil {
