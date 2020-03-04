@@ -2,10 +2,11 @@ package main
 
 import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/stianeikeland/go-rpio"
 	"os"
 	"fmt"
 	"log"
-	"github.com/stianeikeland/go-rpio"
+	"time"
 )
 
 func main() {
@@ -35,6 +36,9 @@ func main() {
 		panic(err)
 	}
 	defer rpio.Close()
+
+	buzzer := rpio.Pin(14)
+	buzzer.Output()
 
 	//////////For Pin Pad//////////
 	//		col 1	col 2	col 3
@@ -106,16 +110,15 @@ func main() {
 
 	defer cardReader.stop()
 
+	handleDenied := func(client mqtt.Client, msg mqtt.Message) {
+		buzz(buzzer, time.Second * 3)
+	}
+
+	if token := client.Subscribe("bast/csulb-bast/Main Entrance/denied", 0, handleDenied); token.Wait() && token.Error() != nil {
+		log.Println(token.Error())
+	}
+
 	for {
-		if token := client.Publish("hello", 0, false, "This is it"); token.Wait() && token.Error() != nil {
-			fmt.Println(token.Error())
-		}
-
-		//for top /card when it is used in a lcok
-		if token := client.Publish("/bast/csulb-bast/backdoor/card", 0, false, "backdoor card engaged"); token.Wait() && token.Error() != nil {
-			fmt.Println(token.Error())
-		}
-
 		//for loop will loop through the outputs
 		for row := 0; row < 4; row++ {
 
@@ -135,7 +138,7 @@ func main() {
 						fmt.Println(userPin)
 
 						//for topic /keyboard when it is used in a lock
-						if token := client.Publish("/bast/csulb-bast/backdoor/keypad", 0, false, userPin); token.Wait() && token.Error() != nil {
+						if token := client.Publish("bast/csulb-bast/Main Entrance/keypad", 0, false, userPin); token.Wait() && token.Error() != nil {
 							fmt.Println(token.Error())
 						}
 

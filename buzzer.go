@@ -5,9 +5,10 @@ import (
 	"time"
 )
 
-func longBuzz(buzzerPin rpio.Pin) {
+func buzz(buzzerPin rpio.Pin, dur time.Duration) {
+	start := time.Now()
 	buzzerPin.High()
-	time.Sleep(time.Second)
+	for time.Now().Sub(start) < dur { }
 	buzzerPin.Low()
 }
 
