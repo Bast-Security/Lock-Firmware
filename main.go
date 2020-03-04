@@ -2,10 +2,10 @@ package main
 
 import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"os"
+	"github.com/stianeikeland/go-rpio"
 	"fmt"
 	"log"
-	"github.com/stianeikeland/go-rpio"
+	"time"
 )
 
 func main() {
@@ -23,18 +23,21 @@ func main() {
 		panic(token.Error())
 	}
 
-	handleQuit := func(c mqtt.Client, m mqtt.Message) {
-		os.Exit(0)
-	}
-
-	if token := client.Subscribe("quit", 0, handleQuit); token.Wait() && token.Error() != nil {
-		panic(token.Error())
-	}
-
 	if err := rpio.Open(); err != nil {
 		panic(err)
 	}
 	defer rpio.Close()
+
+	buzzer := rpio.Pin(18)
+	buzzer.Output()
+
+	handleDenied := func(c mqtt.Client, m mqtt.Message) {
+		go buzz(buzzer, time.Second * 2)
+	}
+
+	if token := client.Subscribe("bast/csulb-bast/Main Entrance/denied", 0, handleDenied); token.Wait() && token.Error() != nil {
+		log.Fatal(token.Error())
+	}
 
 	//////////For Pin Pad//////////
 	//		col 1	col 2	col 3
@@ -95,6 +98,7 @@ func main() {
 	//variable will be saving the input of the user
 	userPin := ""
 
+	/*
 	cardRead := func(num string) {
 		fmt.Printf("Card %s was read!\n", num)
 	}
@@ -105,6 +109,7 @@ func main() {
 	}
 
 	defer cardReader.stop()
+	*/
 
 	for {
 		if token := client.Publish("hello", 0, false, "This is it"); token.Wait() && token.Error() != nil {
@@ -135,7 +140,7 @@ func main() {
 						fmt.Println(userPin)
 
 						//for topic /keyboard when it is used in a lock
-						if token := client.Publish("/bast/csulb-bast/backdoor/keypad", 0, false, userPin); token.Wait() && token.Error() != nil {
+						if token := client.Publish("bast/csulb-bast/Main Entrance/pin", 0, false, userPin); token.Wait() && token.Error() != nil {
 							fmt.Println(token.Error())
 						}
 
