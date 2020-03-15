@@ -3,8 +3,10 @@ package main
 import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stianeikeland/go-rpio"
+	"github.com/grandcat/zeroconf"
 	"fmt"
 	"log"
+	"net"
 	"time"
 )
 
@@ -12,6 +14,20 @@ func main() {
 	defaultHandler := func(c mqtt.Client, m mqtt.Message) {
 		fmt.Println(m)
 	}
+
+	var (
+		mdnsServer *zeroconf.Server
+		err error
+	)
+
+	log.Println("Starting MDNS server.")
+	if ifaces, err := net.Interfaces(); err == nil {
+		mdnsServer, err = zeroconf.Register("Bast Lock", SERVICE, DOMAIN, PORT, nil, ifaces)
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer mdnsServer.Shutdown()
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker("tcp://bastc.local:1883")
