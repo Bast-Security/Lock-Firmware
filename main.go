@@ -8,7 +8,15 @@ import (
 	"bufio"
 )
 
+//boolean function will check to see if the Lock has been used or not
+var lockFirstRun = false
+
 func main() {
+
+	//checks to see if the Lock is being used for the first time
+	if !lockFirstRun{
+		fmt.Println("hey")
+	}
 
 	//loop will loop constantly until forever and ever man
 	for true{
