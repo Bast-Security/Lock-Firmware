@@ -103,28 +103,6 @@ func main() {
 		//saves the unique lock id that the server sent as a response as the lock's unique id
 		lockUniqueID = string(body)
 
-		//////////////////////////////////////////////////////////////////////////////////////////
-		//////////////////////////////////////////////////////////////////////////////////////////
-
-		//gets a get request from the server and saves the stuff
-		/*
-		respG, err := http.Get("https://bast-security.xyz:8080/locks/lockUniqueID")
-		if err != nil{
-			log.Fatalln(err)
-		}
-
-		defer respG.Body.Close()
-
-		bodyG, err := ioutil.ReadAll(respG.Body)
-		if err != nil{
-			log.Fatalln(err)
-		}
-
-		//prints out
-		log.Println(string(bodyG))
-		*/
-
-
 	}else{
 		//file found so open file and save unique id number
 		fmt.Println("\n\nRegistered\n")
@@ -171,7 +149,30 @@ func main() {
 		//for testing purposes
 		fmt.Println("Private Key: ", publicKeyImported)
 		fmt.Println("\n")
+
 	}
+
+	//LOGIN
+	//////////////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////////////
+
+	//get request to server to login
+	/*
+	respG, err := http.Get("https://bast-security.xyz:8080/locks/lockUniqueID")
+	if err != nil{
+		log.Fatalln(err)
+	}
+
+	defer respG.Body.Close()
+
+	bodyG, err := ioutil.ReadAll(respG.Body)
+	if err != nil{
+		log.Fatalln(err)
+	}
+
+	//prints out
+	log.Println(string(bodyG))
+	*/
 
 
 	//loop will loop constantly until forever and ever man
