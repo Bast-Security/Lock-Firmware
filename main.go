@@ -19,7 +19,7 @@ import (
 	"math/big"
 	"bytes"
 	"crypto/tls"
-	// "crypto/sha256"
+	"crypto/sha256"
 )
 
 type Door struct {
@@ -31,6 +31,11 @@ type Door struct {
     Response  []byte  `json:"response,omitempty"`
     Name   string `json:"name,omitempty"`
     Method int    `json:"method,omitemtpy"`
+}
+
+type RandS struct {
+	R	*big.Int
+	S	*big.Int
 }
 
 func main() {
@@ -139,6 +144,10 @@ func main() {
 		fmt.Println("Private Key: ", publicKeyImported)
 		fmt.Println("\n")
 
+
+
+		////LOGIN put login in a function, call function for both spots
+
 	}
 
 	//will be reading the argument that the user provides
@@ -162,6 +171,7 @@ func main() {
 			fmt.Println("Pin typed: ", line)
 
 			if !isRegistered{
+				fmt.Println("NOT NOT REGISTERED")
 				//sending the public key X and Y to server
 				requestBody, err := json.Marshal(Door{
 					System: line,
@@ -191,31 +201,105 @@ func main() {
 				//saves the unique lock id that the server sent as a response as the lock's unique id
 				lockUniqueID = string(body)
 
-				//LOGIN
-				//////////////////////////////////////////////////////////////////////////////////////////
-				//////////////////////////////////////////////////////////////////////////////////////////
+				fmt.Println("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxlockUniqueId: ", lockUniqueID)
 
-				//get request to server to login
-				respG, err := http.Get("https://bast-security.xyz:8080/locks/lockUniqueID")
-				if err != nil{
-					log.Fatalln(err)
+				//CREATE A FILE NAMED lockId.txt and save the lockunique key
+				f, err := os.Create("lockId.txt")
+				if err != nil {
+					fmt.Println(err)
 				}
 
-				defer respG.Body.Close()
-
-				bodyG, err := ioutil.ReadAll(respG.Body)
+				_, err = io.WriteString(f, lockUniqueID)
 				if err != nil{
-					log.Fatalln(err)
+					fmt.Println(err)
 				}
 
-				//prints out
-				log.Println(string(bodyG))
 
+				///CALL FUNCTION LOGIN HERE BBBB
+				jwt, errr := loginFunction(lockUniqueID, privateKey)
+				if jwt != "" && errr == nil {
+					isRegistered = true
+				}else{
+					os.Exit(1)
+				}
+
+				//if true then is registered is true , else stays the same
 				isRegistered = true
+				//os.exit to exit program
 
 			}
 		} else if err != io.EOF {
 			panic(err)
 		}
 	}
+}
+
+//function to login in lock-firmware to system
+func loginFunction(lockUniqueID string, privateKey *ecdsa.PrivateKey) (string, error) {
+
+	//get reuest to server to login in using the unique lock id
+	resp, err := http.Get("https://bast-security.xyz:8080/locks/lockUniqueID")
+	if err != nil{
+		log.Fatalln(err)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	//prints out
+	fmt.Println(string(body))
+
+	//saving the respond of the controller to the lock-firmware
+	var challengeString = string(body)
+
+	//hash the challenge string to return to controller
+	var hashedChallengeString = sha256.Sum256([]byte(challengeString))
+	fmt.Println("hashed challenge: ", hashedChallengeString)
+
+	r,s, err := ecdsa.Sign(rand.Reader, privateKey, hashedChallengeString[:])
+	if err != nil{
+		panic(err)
+	}
+
+	//sending the public key X and Y to server
+	requestBody, err := json.Marshal(RandS{
+		R: r,
+		S: s,
+	})
+	if err != nil{
+		log.Fatalln(err)
+	}
+
+	//sending the challengestring
+	var postRequest string = "https://bast-security.xyz:8080/locks/" + lockUniqueID + "/login"
+	respP, err := http.Post(postRequest,"",bytes.NewBuffer(requestBody))
+	if err != nil{
+		log.Fatalln(err)
+	}
+	
+	defer respP.Body.Close()
+
+	if respP.StatusCode == 200 {
+		bodyP, err := ioutil.ReadAll(resp.Body)
+		if err != nil{
+			log.Fatalln(err)
+		}
+
+		var jwt = string(bodyP)
+		return jwt, nil
+	}else{
+		return "", fmt.Errorf("Failed to login")
+	}
+
+	
+	//lock scramble it
+	//use hash.sha256
+	//create a signature using private key- using function sign? pash private key and hash, give you two numbers, r and s are signmature,
+	// send those numbers to the server
+	//crypto/rand
+	//ecdsa.sign.random.reader
 }
