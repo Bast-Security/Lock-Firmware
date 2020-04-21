@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"flag"
 	"os"
+	"io"
 	"strings"
 	"bufio"
 	"crypto/ecdsa"
@@ -192,12 +193,14 @@ func main() {
 			panic(err)
 		}
 
-		//if file exists then the file is read using bufio library
-		scanner := bufio.NewScanner(file)
+		reader := bufio.NewReader(file)
 
-		//prints out what was added to the pipe file
-		for scanner.Scan(){
-			fmt.Println("key inserted: ",scanner.Text())
+		for {
+			if line, err := reader.ReadString('\n'); err == nil {
+				fmt.Println("key inserted: ", line)
+			} else if err != io.EOF {
+				panic(err)
+			}
 		}
 
 
