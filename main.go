@@ -18,7 +18,19 @@ import (
 	"math/big"
 	"bytes"
 	"crypto/tls"
+	"crypto/sha256"
 )
+
+type Door struct {
+    Id     int64  `json:"id,omitempty"`
+    System string  `json:"system,omitempty"`
+    KeyX *big.Int     `json:"keyX,omitempty"`
+    KeyY *big.Int     `json:"keyY,omitempty"`
+    Challenge []byte  `json:"challenge,omitempty"`
+    Response  []byte  `json:"response,omitempty"`
+    Name   string `json:"name,omitempty"`
+    Method int    `json:"method,omitemtpy"`
+}
 
 func main() {
 
@@ -29,6 +41,7 @@ func main() {
 	//lock's private key
 	var privateKey *ecdsa.PrivateKey
 	var err error
+	var isRegistered = false;
 
 	//check to see if a file exists with the privateKey if not then the file is created
 	fileInfo, err := os.Stat("lockId.txt")
@@ -75,35 +88,10 @@ func main() {
 
 		pemFile.Close()
 
-		//sending the public key X and Y to server
-		requestBody, err := json.Marshal(map[string]*big.Int{
-			"X": privateKey.PublicKey.X,
-			"Y": privateKey.PublicKey.Y,
-		})
-		if err != nil{
-			log.Fatalln(err)
-		}
-
-		//a post request that will send information to the server
-		resp, err := http.Post("https://bast-security.xyz:8080/locks/register","",bytes.NewBuffer(requestBody))
-		if err != nil{
-			log.Fatalln(err)
-		}
-
-		defer resp.Body.Close()
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil{
-			log.Fatalln(err)
-		}
-
-		//prints out
-		log.Println(string(body))
-
-		//saves the unique lock id that the server sent as a response as the lock's unique id
-		lockUniqueID = string(body)
-
 	}else{
+
+		isRegistered = true
+
 		//file found so open file and save unique id number
 		fmt.Println("\n\nRegistered\n")
 
@@ -152,55 +140,80 @@ func main() {
 
 	}
 
-	//LOGIN
-	//////////////////////////////////////////////////////////////////////////////////////////
-	//////////////////////////////////////////////////////////////////////////////////////////
+	//will be reading the argument that the user provides
+	flag.Parse()
 
-	//get request to server to login
-	/*
-	respG, err := http.Get("https://bast-security.xyz:8080/locks/lockUniqueID")
+	//saves the path from the argument that the user provided
+	var pathName = flag.Args()
+
+	//converting pathName variable from []string to string
+	file, err := os.OpenFile(strings.Join(pathName,""), os.O_RDONLY, os.ModeNamedPipe)
+	
+	//checks to see that file exists
 	if err != nil{
-		log.Fatalln(err)
+		panic(err)
 	}
 
-	defer respG.Body.Close()
+	//if file exists then the file is read using bufio library
+	scanner := bufio.NewScanner(file)
 
-	bodyG, err := ioutil.ReadAll(respG.Body)
-	if err != nil{
-		log.Fatalln(err)
-	}
+	//prints out what was added to the pipe file
+	for scanner.Scan(){
+		fmt.Println("key inserted: ",scanner.Text())
 
-	//prints out
-	log.Println(string(bodyG))
-	*/
+		if !isRegistered{
+			
+			//sending the public key X and Y to server
+			requestBody, err := json.Marshal(Door{
+				System: scanner.Text(),
+				KeyX: privateKey.PublicKey.X,
+				KeyY: privateKey.PublicKey.Y,
+			})
+			if err != nil{
+				log.Fatalln(err)
+			}
 
+			//a post request that will send information to the server
+			resp, err := http.Post("https://bast-security.xyz:8080/locks/register","",bytes.NewBuffer(requestBody))
+			if err != nil{
+				log.Fatalln(err)
+			}
 
-	//loop will loop constantly until forever and ever man
-	for true{
+			defer resp.Body.Close()
 
-		//will be reading the argument that the user provides
-		flag.Parse()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil{
+				log.Fatalln(err)
+			}
 
-		//saves the path from the argument that the user provided
-		var pathName = flag.Args()
+			//prints out
+			log.Println(string(body))
 
-		//converting pathName variable from []string to string
-		file, err := os.OpenFile(strings.Join(pathName,""), os.O_RDONLY, os.ModeNamedPipe)
-		
-		//checks to see that file exists
-		if err != nil{
-			panic(err)
+			//saves the unique lock id that the server sent as a response as the lock's unique id
+			lockUniqueID = string(body)
+
+			//LOGIN
+			//////////////////////////////////////////////////////////////////////////////////////////
+			//////////////////////////////////////////////////////////////////////////////////////////
+
+			//get request to server to login
+			respG, err := http.Get("https://bast-security.xyz:8080/locks/lockUniqueID")
+			if err != nil{
+				log.Fatalln(err)
+			}
+
+			defer respG.Body.Close()
+
+			bodyG, err := ioutil.ReadAll(respG.Body)
+			if err != nil{
+				log.Fatalln(err)
+			}
+
+			//prints out
+			log.Println(string(bodyG))
+
+			isRegistered = true
+
 		}
-
-		//if file exists then the file is read using bufio library
-		scanner := bufio.NewScanner(file)
-
-		//prints out what was added to the pipe file
-		for scanner.Scan(){
-			fmt.Println("key inserted: ",scanner.Text())
-		}
-
-
-		//SEND THIS INFORMATION 
 	}
 }
