@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"encoding/asn1"
 	"crypto/rand"
 	"net/http"
 	"encoding/json"
@@ -335,37 +336,29 @@ func login(lockUniqueID int64, lockPrivateKey *ecdsa.PrivateKey)(string, error){
 	fmt.Println("loginResponseBody: ", string(loginResponseBody))
 	/*****************************************************/
 
-	//saving the login response body into a variable
-	var challengeString = string(loginResponseBody)
+	var response map[string][]byte
+	if err := json.Unmarshal(loginResponseBody, &response); err != nil {
+		panic(err)
+	}
 
-	//hashing the challenge string
-	var hashedChallengeString = sha256.Sum256([]byte(challengeString))
+	challengeString := response["challenge"]
+	hashedChallengeString := sha256.Sum256([]byte(challengeString))
 	
-	/*****************************************************/
-	/**********************TESTING************************/
 	fmt.Println("hashedChallengeString: ", hashedChallengeString)
-	/*****************************************************/
 
-	//creats an R and S to send to server to confirm lock is who they say they are
 	r, s, err := ecdsa.Sign(rand.Reader, lockPrivateKey, hashedChallengeString[:])
-	//incase of an error
 	if err != nil{
 		panic(err)
 	}
 
-	//creating a json to send to server
-	randSrequestBody, err := json.Marshal(RandS{
-		R: r,
-		S: s,
-	})
-	//incase of an error and json body is not created
-	if err != nil{
+	var payload []byte
+	if payload, err = asn1.Marshal(struct{ R, S *big.Int }{ r, s }); err != nil {
 		panic(err)
 	}
 
 	//sending the hashed challenge string to the server
 	var challengeStringRequest string = "https://bast-security.xyz:8080/locks/" + strconv.FormatInt(lockUniqueID,10) + "/login"
-	challengeStringResponse, err := http.Post(challengeStringRequest, "", bytes.NewBuffer(randSrequestBody))
+	challengeStringResponse, err := http.Post(challengeStringRequest, "", bytes.NewBuffer(payload))
 	//incase post request was not sent
 	if err!= nil{
 		panic(err)
