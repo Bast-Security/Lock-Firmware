@@ -47,6 +47,11 @@ type UniqueLockNumber struct {
 	Id	int64	`json:"id"`
 }
 
+/**object AccessDoor; used to send pin code/cardnumber to the server*/
+type AccessDoor struct {
+	Pin	string
+}
+
 func main(){
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
@@ -61,7 +66,7 @@ func main(){
 
 	/**checks to see if there is a file containing the the unique lock id named lockID.txt; if not then 
 	lock is not registered; if exists then lock is registered*/
-	lockIDfileInfo, err := os.Stat("lockID.txt")
+	_, err = os.Stat("lockID.txt")
 	//lockID file does not exist
 	if err!= nil{
 		fmt.Println("\n---Lock is Un-Registered---\n")
@@ -107,7 +112,7 @@ func main(){
 
 	//lockID file exists	
 	}else{
-		fmt.Println("\n---Lock is Registered---\n")
+		fmt.Println("\n---Lock is Registered---")
 
 		//lock is registered so isRegistered is set to true
 		isRegistered = true
@@ -155,8 +160,7 @@ func main(){
 		pemBytes := make([]byte, size)
 
 		buffer := bufio.NewReader(pemFile)
-		stop, err := buffer.Read(pemBytes)
-		fmt.Println("Stop: ", stop)
+		_, err = buffer.Read(pemBytes)
 
 		data, _ := pem.Decode([]byte(pemBytes))
 
@@ -178,8 +182,8 @@ func main(){
 		/*****************************************************/
 		jwt, err := login(lockUniqueID, lockPrivateKey)
 		if jwt != "" && err == nil{
+			fmt.Println("---Login Successful---")
 			isRegistered = true
-			fmt.Println("HEYY")
 		}else{
 			os.Exit(1)
 		}
@@ -203,12 +207,10 @@ func main(){
 	
 	/**for loop will continously loop and read a pin when entered in a terminal*/
 	for{
-		/*---------------------------------------------------------------------------------------------------*/
-		/*----------------------ASK FABIO ABOUT THIS; reads system everytime first ran-----------------------*/
-		/*---------------------------------------------------------------------------------------------------*/
 		//if loop will read the data from the terminal
 		if line, err := reader.ReadString('\n'); err == nil{
-			fmt.Println("Pin typed: ", line)
+			fmt.Println("-----------------------------------------------")
+			fmt.Println("\n--Pin typed: ", line)
 			//removes the '\n\' from line
 			line = strings.TrimSpace(line)
 
@@ -235,11 +237,6 @@ func main(){
 					panic(err)
 				}
 
-				/*****************************************************/
-				/**********************TESTING************************/
-				fmt.Println("requestBody: ", string(requestBody))
-				/*****************************************************/
-
 				//post request will send information to the server
 				registerResponse, err := http.Post("https://bast-security.xyz:8080/locks/register","",bytes.NewBuffer(requestBody))
 				//incase registerResponse could not post
@@ -255,11 +252,6 @@ func main(){
 				if err != nil{
 					panic(err)
 				}
-
-				/*****************************************************/
-				/**********************TESTING************************/
-				fmt.Println("registerResponseBody: ", string(registerResponseBody))
-				/*****************************************************/
 
 				//registerResponseBody is converted to a UniqueLockNumber in order to get the id of the lock the server sent
 				registerResponseJSON := UniqueLockNumber{}
@@ -288,23 +280,47 @@ func main(){
 				/*****************************************************/
 				jwt, err := login(lockUniqueID, lockPrivateKey)
 				if jwt != "" && err == nil{
+					fmt.Println("\n---Login Successful---\n")
 					isRegistered = true
 				}else{
 					os.Exit(1)
 				}
+			
+			/***************************************************************/
+			}else if isRegistered{
+				fmt.Println("---Accessing Door---")
 
+				//creating a json string containing pin number to send to server
+				accessRequestBody, err := json.Marshal(AccessDoor{
+					Pin: line,
+				})
+				//incase accessRequestBody could not be generated
+				if err != nil{
+					panic(err)
+				}
+
+				//post request will send accessDoor information to the server
+				var accessDoorURL string = "https://bast-security.xyz:8080/locks/" + strconv.FormatInt(lockUniqueID,10) + "/access"
+				accessDoorResponse, err := http.Post(accessDoorURL,"",bytes.NewBuffer(accessRequestBody))
+				//incase accessDoorResponse could not post
+				if err != nil{
+					panic(err)
+				}
+
+				defer accessDoorResponse.Body.Close()
+
+				//if loop checks to see if the pin entered has accesses to the door
+				if accessDoorResponse.StatusCode == 200{
+					fmt.Println("---Accessing Granted---")
+				}else{
+					fmt.Println("---Accessing Denied---")
+				}
+				fmt.Println("-----------------------------------------------")
 			}
 		}else if err != io.EOF{
 			panic(err)
 		}
 	}
-	/*****************************************************/
-	/**********************TESTING************************/
-	fmt.Println("lockUniqueID: ", lockUniqueID)
-	fmt.Println("lockPrivateKey: ", lockPrivateKey)
-	fmt.Println("isRegistered: ", isRegistered)
-	fmt.Println("lockIDfile: ", lockIDfileInfo)
-	/*****************************************************/
 }
 
 /**Login function for the lock to connect to server*/
@@ -317,11 +333,6 @@ func login(lockUniqueID int64, lockPrivateKey *ecdsa.PrivateKey)(string, error){
 		panic(err)
 	}
 
-
-	/*-------------------------------------------------------------------------------------*/
-	fmt.Println("https://bast-security.xyz:8080/locks/" + strconv.FormatInt(lockUniqueID,10))
-
-
 	defer loginResponse.Body.Close()
 
 	//reads the response from the server
@@ -331,11 +342,6 @@ func login(lockUniqueID int64, lockPrivateKey *ecdsa.PrivateKey)(string, error){
 		panic(err)
 	}
 
-	/*****************************************************/
-	/**********************TESTING************************/
-	fmt.Println("loginResponseBody: ", string(loginResponseBody))
-	/*****************************************************/
-
 	var response map[string][]byte
 	if err := json.Unmarshal(loginResponseBody, &response); err != nil {
 		panic(err)
@@ -343,8 +349,6 @@ func login(lockUniqueID int64, lockPrivateKey *ecdsa.PrivateKey)(string, error){
 
 	challengeString := response["challenge"]
 	hashedChallengeString := sha256.Sum256([]byte(challengeString))
-	
-	fmt.Println("hashedChallengeString: ", hashedChallengeString)
 
 	r, s, err := ecdsa.Sign(rand.Reader, lockPrivateKey, hashedChallengeString[:])
 	if err != nil{
