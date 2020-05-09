@@ -228,6 +228,7 @@ func main(){
 
 				//creating a json string containing systemID and public x and y key
 				requestBody, err := json.Marshal(Door{
+					Name: fmt.Sprintf("Lock %s", tokens[1]),
 					System: systemID,
 					KeyX: lockPrivateKey.PublicKey.X,
 					KeyY: lockPrivateKey.PublicKey.Y,
