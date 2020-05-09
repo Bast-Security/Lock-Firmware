@@ -34,6 +34,7 @@ type Door struct {
     Response  []byte  `json:"response,omitempty"`
     Name   string `json:"name,omitempty"`
     Method int    `json:"method,omitemtpy"`
+    Totp string `json:"totp,omitempty"`
 }
 
 /**object RandS; used to send json response to controller with hashed challenge string*/
@@ -64,7 +65,7 @@ func main(){
 	var isRegistered = false
 	var err error
 
-	/**checks to see if there is a file containing the the unique lock id named lockID.txt; if not then 
+	/**checks to see if there is a file containing the the unique lock id named lockID.txt; if not then
 	lock is not registered; if exists then lock is registered*/
 	_, err = os.Stat("lockID.txt")
 	//lockID file does not exist
@@ -110,7 +111,7 @@ func main(){
 		//closes the lockPrivateKey.pem file
 		pemFile.Close()
 
-	//lockID file exists	
+	//lockID file exists
 	}else{
 		fmt.Println("\n---Lock is Registered---")
 
@@ -204,7 +205,7 @@ func main(){
 
 	//reader will read the data inside the file
 	reader := bufio.NewReader(file)
-	
+
 	/**for loop will continously loop and read a pin when entered in a terminal*/
 	for{
 		//if loop will read the data from the terminal
@@ -214,22 +215,23 @@ func main(){
 			//removes the '\n\' from line
 			line = strings.TrimSpace(line)
 
-			//converting line from the terminal into an int64 data type
-			systemID, err := strconv.ParseInt(line, 10, 64)
-			//incase line does not successfully convert into an int64
-			if err != nil{
-				panic(err)
-			}
-
 			/**if look checks to see if lock is registered or not*/
 			if !isRegistered{
 				fmt.Println("\n---Lock is Un-Registered---\n")
+
+				tokens := strings.Split(line, "*")
+
+				systemID, err := strconv.ParseInt(tokens[0], 10, 64)
+				if err != nil{
+					panic(err)
+				}
 
 				//creating a json string containing systemID and public x and y key
 				requestBody, err := json.Marshal(Door{
 					System: systemID,
 					KeyX: lockPrivateKey.PublicKey.X,
 					KeyY: lockPrivateKey.PublicKey.Y,
+					Totp: tokens[1],
 				})
 				//incase requestBody could not be generated
 				if err != nil{
@@ -285,7 +287,7 @@ func main(){
 				}else{
 					os.Exit(1)
 				}
-			
+
 			/***************************************************************/
 			}else if isRegistered{
 				fmt.Println("---Accessing Door---")
