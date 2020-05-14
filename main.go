@@ -195,43 +195,39 @@ func main(){
 		}
 	}
 
-	//reads the argument that the user provides
+	var (
+		pinPipe string
+		cardPipe string
+	)
+
+	flag.StringVar(&pinPipe, "pin-pipe", "pin-pipe", "Location of a named pipe to read pin-data from")
+	flag.StringVar(&cardPipe, "card-pipe", "card-pipe", "Location of a named pipe to read card-data from")
 	flag.Parse()
 
-	//saves the path from the argument that the user provides
-	var pathName = flag.Args()
+	fmt.Println("pin pipe ", pinPipe)
+	fmt.Println("card pipe ", cardPipe)
 
-	//converts the path into a string that will be split into different strings
-	pathNameString := strings.Join(pathName," ")
-
-	//splits pathNameString into taking 2 arguments
-	pipes := strings.Split(pathNameString, " ")
-	fmt.Println("pipes[0]: ", pipes[0])
-	fmt.Println("pipes[1]: ", pipes[1])
-
-	//opening pipes[0] file
-	filePipe0, err := os.OpenFile(pipes[0], os.O_RDONLY, os.ModeNamedPipe)
-	//incase filePipe0 does not open
+	filePipe0, err := os.OpenFile(pinPipe, os.O_RDONLY, os.ModeNamedPipe)
 	if err != nil{
 		panic(err)
 	}
 
-	//reader will read the data inside the filePipe0
+	fmt.Println("Opened pin-pipe")
+
 	reader := bufio.NewReader(filePipe0)
 
-	//opening pipes[1] file
-	filePipe1, err := os.OpenFile(pipes[1], os.O_RDONLY, os.ModeNamedPipe)
-	//incase filePipe1 does not open
+	filePipe1, err := os.OpenFile(cardPipe, os.O_RDONLY, os.ModeNamedPipe)
 	if err != nil{
 		panic(err)
 	}
+
+	fmt.Println("Opened card-pipe")
 
 	//reader1 will read the data inside the filePipe1
 	reader1 := bufio.NewReader(filePipe1)
 
 	/**for loop will continously loop and read a pin when entered in a terminal*/
 	for{
-
 		//if loop will read the data from filepipe1
 		if line, err := reader1.ReadString('\n'); err == nil{
 			fmt.Println("-----------------------------------------------")
@@ -286,6 +282,10 @@ func main(){
 				fmt.Println("\n---Lock is Un-Registered---\n")
 
 				tokens := strings.Split(line, "*")
+
+				if len(tokens) < 2 {
+					continue
+				}
 
 				systemID, err := strconv.ParseInt(tokens[0], 10, 64)
 				if err != nil{
