@@ -48,9 +48,14 @@ type UniqueLockNumber struct {
 	Id	int64	`json:"id"`
 }
 
-/**object AccessDoor; used to send pin code/cardnumber to the server*/
+/**object AccessDoor; used to send pin code to the server*/
 type AccessDoor struct {
 	Pin	string
+}
+
+/**object AccessDoorCard; used to send card number to the server*/
+type AccessDoorCard struct {
+	Card string
 }
 
 func main(){
@@ -196,22 +201,83 @@ func main(){
 	//saves the path from the argument that the user provides
 	var pathName = flag.Args()
 
-	//converting pathName variable from []string to string
-	file, err := os.OpenFile(strings.Join(pathName,""), os.O_RDONLY, os.ModeNamedPipe)
-	//incase file does not open
+	//converts the path into a string that will be split into different strings
+	pathNameString := strings.Join(pathName," ")
+
+	//splits pathNameString into taking 2 arguments
+	pipes := strings.Split(pathNameString, " ")
+	fmt.Println("pipes[0]: ", pipes[0])
+	fmt.Println("pipes[1]: ", pipes[1])
+
+	//opening pipes[0] file
+	filePipe0, err := os.OpenFile(pipes[0], os.O_RDONLY, os.ModeNamedPipe)
+	//incase filePipe0 does not open
 	if err != nil{
 		panic(err)
 	}
 
-	//reader will read the data inside the file
-	reader := bufio.NewReader(file)
+	//reader will read the data inside the filePipe0
+	reader := bufio.NewReader(filePipe0)
+
+	//opening pipes[1] file
+	filePipe1, err := os.OpenFile(pipes[1], os.O_RDONLY, os.ModeNamedPipe)
+	//incase filePipe1 does not open
+	if err != nil{
+		panic(err)
+	}
+
+	//reader1 will read the data inside the filePipe1
+	reader1 := bufio.NewReader(filePipe1)
 
 	/**for loop will continously loop and read a pin when entered in a terminal*/
 	for{
-		//if loop will read the data from the terminal
+
+		//if loop will read the data from filepipe1
+		if line, err := reader1.ReadString('\n'); err == nil{
+			fmt.Println("-----------------------------------------------")
+			fmt.Println("\n--Card: ", line)
+			//removes the '\n\' from line
+			line = strings.TrimSpace(line)
+
+			/*there should be no register because the first time the lock is register it uses the pinpipe, this 
+			uses the /cardpipe*/
+			fmt.Println("---Accessing Door---")
+
+			//creating a json string containing card number to send to server
+			accessRequestBody, err := json.Marshal(AccessDoorCard{
+				Card: line,
+			})
+			//incase accessRequestBody could not be generated
+			if err != nil{
+				panic(err)
+			}
+
+			//post request will send accessDoorCard information to the server
+			var accessDoorURL string = "https://bast-security.xyz:8080/locks/" + strconv.FormatInt(lockUniqueID,10) + "/access"
+			accessDoorResponse, err := http.Post(accessDoorURL,"",bytes.NewBuffer(accessRequestBody))
+			//incase accessDoorResponse could not post
+			if err != nil{
+				panic(err)
+			}
+
+			defer accessDoorResponse.Body.Close()
+
+			//if loop checks to see if the pin entered has accesses to the door
+			if accessDoorResponse.StatusCode == 200{
+				fmt.Println("---Accessing Granted---")
+			}else{
+				fmt.Println("---Accessing Denied---")
+			}
+			fmt.Println("-----------------------------------------------")
+
+		}else if err != io.EOF{
+			panic(err)
+		}
+
+		//if loop will read the data from filepipe0
 		if line, err := reader.ReadString('\n'); err == nil{
 			fmt.Println("-----------------------------------------------")
-			fmt.Println("\n--Pin typed: ", line)
+			fmt.Println("\n--Pin: ", line)
 			//removes the '\n\' from line
 			line = strings.TrimSpace(line)
 
