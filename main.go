@@ -61,104 +61,64 @@ type AccessDoorCard struct {
 func main(){
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
-	/**----Variables----*/
-	//lock unique id
-	var lockUniqueID int64
-	//lock private key
-	var lockPrivateKey *ecdsa.PrivateKey
-	//determines whether the lock is registerd to a system
-	var isRegistered = false
-	var err error
+	var (
+		lockUniqueID int64
+		lockPrivateKey *ecdsa.PrivateKey
+		isRegistered bool = false
+		err error
+	)
 
-	/**checks to see if there is a file containing the the unique lock id named lockID.txt; if not then
-	lock is not registered; if exists then lock is registered*/
-	_, err = os.Stat("lockID.txt")
-	//lockID file does not exist
-	if err!= nil{
+	if _, err = os.Stat("lockID.txt"); os.IsNotExist(err) {
 		fmt.Println("\n---Lock is Un-Registered---\n")
 
-		//generates an ecdsa key pair using the p384 curve for the lock
 		lockPrivateKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-		//incase of an error and ecdsa key pair is not generated
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
 
-		//creates lockPrivateKey into data type byte in order to send a request to controller
 		lockPrivateKeyBytes, err := x509.MarshalECPrivateKey(lockPrivateKey)
-		//incase of an error that lockPrivateKey is not turned into data type bytes
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
 
-		//Creates file named lockPrivateKey.pem to store lockPrivateKey
 		pemFile, err := os.Create("lockPrivateKey.pem")
-		//incase of an error and the file lockPrivateKey is not created, program exits
-		if err != nil{
-			fmt.Println("Pem File failed to create")
-			os.Exit(1)
+		if err != nil {
+			panic(err)
 		}
 
-		//encoding the lock private key
 		var pemPrivateKeyBlock = &pem.Block{
 			Type: "ECDSA Private Key",
 			Bytes: lockPrivateKeyBytes,
 		}
 
-		//writes the encoded private key into lockPrivateKey.pem file
 		err = pem.Encode(pemFile, pemPrivateKeyBlock)
-		//incase the encoded private key does not write into the lockPrivateKey.pem file; program exits
-		if err != nil{
-			fmt.Println("Did not write into Pem File")
-			os.Exit(1)
+		if err != nil {
+			panic(err)
 		}
 
-		//closes the lockPrivateKey.pem file
 		pemFile.Close()
-
-	//lockID file exists
 	}else{
 		fmt.Println("\n---Lock is Registered---")
 
-		//lock is registered so isRegistered is set to true
 		isRegistered = true
 
-		//reads the lock id from the lockID.txt file
 		lockIDfile, err := os.Open("lockID.txt")
-		//incase the file does not open, program exits
-		if err != nil{
-			fmt.Println("Could not open lockID.txt")
-			os.Exit(1)
+		if err != nil {
+			panic(err)
 		}
 
-		//scanner is created to read from lockID.txt file
 		scanner := bufio.NewScanner(lockIDfile)
 
-		//variable holds data from the lockID.txt file when it is read
-		var line string
+		line := strings.TrimSpace(scanner.Text())
 
-		//for loop will read through each line from the lockID.txt
-		for scanner.Scan(){
-			line = scanner.Text()
-		}
-
-		//trims the string
-		line = strings.TrimSpace(line)
-
-		//converts string int an int64
 		lockUniqueID, err = strconv.ParseInt(line,10,64)
-		//incase string was not able to convert to int
-		if err != nil{
-			fmt.Println("Not able to convert to int")
-			os.Exit(1)
+		if err != nil {
+			panic(err)
 		}
 
-		//opens lockPrivateKey.pem file to get the private key of the lock
 		pemFile, err := os.Open("lockPrivateKey.pem")
-		//incase lockPrivateKey.pem file does not open/error
-		if err != nil{
-			fmt.Println("lockPrivateKey.pem could not open")
-			os.Exit(1)
+		if err != nil {
+			panic(err)
 		}
 
 		privatePublicKeyInfo, _ := pemFile.Stat()
@@ -172,20 +132,13 @@ func main(){
 
 		pemFile.Close()
 
-		//decode the data from the lockPrivateKey.pem file
 		privatePublicKeyImported, err := x509.ParseECPrivateKey(data.Bytes)
-		//incase data from the file is not decoded
 		if err != nil{
-			fmt.Println("Could not decode")
-			os.Exit(1)
+			panic(err)
 		}
 
-		//saves the privatePublicKeyImported to lockPrivateKey
 		lockPrivateKey = privatePublicKeyImported
 
-		/*****************************************************/
-		/************************LOGIN************************/
-		/*****************************************************/
 		jwt, err := login(lockUniqueID, lockPrivateKey)
 		if jwt != "" && err == nil{
 			fmt.Println("---Login Successful---")
@@ -223,46 +176,35 @@ func main(){
 
 	fmt.Println("Opened card-pipe")
 
-	//reader1 will read the data inside the filePipe1
 	reader1 := bufio.NewReader(filePipe1)
 
-	/**for loop will continously loop and read a pin when entered in a terminal*/
 	for{
 		//if loop will read the data from filepipe1
 		if line, err := reader1.ReadString('\n'); err == nil{
 			fmt.Println("-----------------------------------------------")
 			fmt.Println("\n--Card: ", line)
-			//removes the '\n\' from line
 			line = strings.TrimSpace(line)
 
-			/*there should be no register because the first time the lock is register it uses the pinpipe, this 
-			uses the /cardpipe*/
 			fmt.Println("---Accessing Door---")
 
-			//creating a json string containing card number to send to server
 			accessRequestBody, err := json.Marshal(AccessDoorCard{
 				Card: line,
 			})
-			//incase accessRequestBody could not be generated
-			if err != nil{
-				panic(err)
+			if err != nil {
+				continue
 			}
 
-			//post request will send accessDoorCard information to the server
 			var accessDoorURL string = "https://bast-security.xyz:8080/locks/" + strconv.FormatInt(lockUniqueID,10) + "/access"
 			accessDoorResponse, err := http.Post(accessDoorURL,"",bytes.NewBuffer(accessRequestBody))
-			//incase accessDoorResponse could not post
 			if err != nil{
-				panic(err)
+				continue
 			}
 
 			defer accessDoorResponse.Body.Close()
-
-			//if loop checks to see if the pin entered has accesses to the door
 			if accessDoorResponse.StatusCode == 200{
-				fmt.Println("---Accessing Granted---")
+				fmt.Println("---Access Granted---")
 			}else{
-				fmt.Println("---Accessing Denied---")
+				fmt.Println("---Access Denied---")
 			}
 			fmt.Println("-----------------------------------------------")
 
@@ -289,7 +231,7 @@ func main(){
 
 				systemID, err := strconv.ParseInt(tokens[0], 10, 64)
 				if err != nil{
-					panic(err)
+					continue
 				}
 
 				//creating a json string containing systemID and public x and y key
@@ -303,37 +245,33 @@ func main(){
 				//incase requestBody could not be generated
 				if err != nil{
 					fmt.Println("requestBody could not be created")
-					panic(err)
+					continue
 				}
 
 				//post request will send information to the server
 				registerResponse, err := http.Post("https://bast-security.xyz:8080/locks/register","",bytes.NewBuffer(requestBody))
 				//incase registerResponse could not post
 				if err != nil{
-					panic(err)
+					fmt.Println("Registration Failed")
+					continue
 				}
 
 				defer registerResponse.Body.Close()
 
-				//reads the response from the server
 				registerResponseBody, err := ioutil.ReadAll(registerResponse.Body)
-				//incase not able to read the response from the server
 				if err != nil{
-					panic(err)
+					fmt.Println("Failed to read response")
+					continue
 				}
 
-				//registerResponseBody is converted to a UniqueLockNumber in order to get the id of the lock the server sent
 				registerResponseJSON := UniqueLockNumber{}
 				json.Unmarshal([]byte(string(registerResponseBody)), &registerResponseJSON)
-				//saves the id response to the lock lockUniqueID
 				lockUniqueID = registerResponseJSON.Id
 
-				//create a file named lockID.txt to store the unique lock id that the server sent to lock
 				lockIDfile, err := os.Create("lockID.txt")
-				//incase lockID.txt was not created
 				if err != nil{
 					fmt.Println("lockID.txt unable to be created")
-					panic(err)
+					continue
 				}
 
 				//writing into the lockID.txt file
@@ -341,7 +279,7 @@ func main(){
 				//incase lockUniqueID was not written into the lockIDfile
 				if err != nil{
 					fmt.Println("Could not write to lockID.txt")
-					panic(err)
+					continue
 				}
 
 				/*****************************************************/
@@ -352,7 +290,7 @@ func main(){
 					fmt.Println("\n---Login Successful---\n")
 					isRegistered = true
 				}else{
-					os.Exit(1)
+					continue
 				}
 
 			/***************************************************************/
@@ -365,7 +303,8 @@ func main(){
 				})
 				//incase accessRequestBody could not be generated
 				if err != nil{
-					panic(err)
+					fmt.Println("Failed to marshal json")
+					continue
 				}
 
 				//post request will send accessDoor information to the server
@@ -373,7 +312,8 @@ func main(){
 				accessDoorResponse, err := http.Post(accessDoorURL,"",bytes.NewBuffer(accessRequestBody))
 				//incase accessDoorResponse could not post
 				if err != nil{
-					panic(err)
+					fmt.Println("Request failed")
+					continue
 				}
 
 				defer accessDoorResponse.Body.Close()
